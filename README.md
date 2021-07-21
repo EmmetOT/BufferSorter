@@ -18,3 +18,5 @@ Like this:
 ![image](https://user-images.githubusercontent.com/18707147/126571298-38079350-4d3f-412f-8b92-2a69666b5f29.png)
  
  It couldn't be simpler, really. Reverse and sublist length are optional parameters.
+
+The project included is Unity version 2020.3.0f1, but there's nothing in the project other than the C# file and compute shader, and nothing especially version dependent. Just copy the scripts and meta files over and you're good to go.
