@@ -1,0 +1,109 @@
+﻿#define GROUP_SIZE 256
+#define MAX_DIM_GROUPS 1024
+#define MAX_DIM_THREADS (GROUP_SIZE * MAX_DIM_GROUPS)
+
+#pragma kernel SetMax
+#pragma kernel SetMin
+#pragma kernel BitonicSort
+#pragma kernel PadBuffer
+#pragma kernel InitKeys
+#pragma kernel OverwriteAndTruncate
+
+int _Block;
+int _Dimension;
+uint _Count;
+uint _NextPowerOfTwo;
+bool _Reverse;
+
+RWStructuredBuffer<uint> _Keys;
+RWStructuredBuffer<int> _Values;
+RWStructuredBuffer<int> _Temp;
+RWStructuredBuffer<int> _External;
+RWStructuredBuffer<int> _PaddingValue;
+
+// determine the lowest value in the data
+[numthreads(GROUP_SIZE, 1, 1)]
+void SetMin(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count)
+        return;
+    
+    InterlockedMin(_PaddingValue[0], _External[id.x]);
+}
+
+// determine the greatest value in the data
+[numthreads(GROUP_SIZE, 1, 1)]
+void SetMax(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count)
+        return;
+    
+    InterlockedMax(_PaddingValue[0], _External[id.x]);
+}
+
+// copy the original data into a new buffer which is the size of the next power of two.
+// populate the spare values with the highest or lowest value in the data, depending on whether
+// the sort is reversed or not
+[numthreads(GROUP_SIZE, 1, 1)]
+void PadBuffer(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _NextPowerOfTwo)
+        return;
+    
+    if (id.x >= _Count)
+        _Temp[id.x] = _PaddingValue[0];
+    else
+        _Temp[id.x] = _Values[id.x];
+}
+
+// initialize the keys buffer
+[numthreads(GROUP_SIZE, 1, 1)]
+void InitKeys(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x + id.y * MAX_DIM_THREADS;
+    
+    if (i >= _Count)
+        return;
+    
+    _Keys[i] = i;
+}
+
+// the actual bitonic merge sort
+[numthreads(GROUP_SIZE, 1, 1)]
+void BitonicSort(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x + id.y * MAX_DIM_THREADS;
+    uint j = i ^ _Block;
+	
+    if (j < i || i >= _Count) 
+        return;
+	
+    uint key_i = _Keys[i];
+    uint key_j = _Keys[j];
+    
+    int value_i = _Values[key_i];
+    int value_j = _Values[key_j];
+    
+    if (_Reverse)
+    {
+        value_i = -value_i;
+        value_j = -value_j;
+    }
+    
+    int diff = (value_i - value_j) * ((i & _Dimension) == 0 ? 1 : -1);
+    if (diff > 0)
+    {
+        _Keys[i] = key_j;
+        _Keys[j] = key_i;
+    }
+}
+
+// finally, transfer the values in their new order back into the original buffer
+[numthreads(GROUP_SIZE, 1, 1)]
+void OverwriteAndTruncate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count)
+        return;
+    
+    _External[id.x] = _Values[_Keys[id.x]];
+}
