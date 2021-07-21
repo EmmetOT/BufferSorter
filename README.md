@@ -19,4 +19,4 @@ Like this:
  
  It couldn't be simpler, really. Reverse and sublist length are optional parameters.
 
-The project included is Unity version 2020.3.0f1, but there's nothing in the project other than the C# file and compute shader, and nothing especially version dependent. Just copy the scripts and meta files over and you're good to go.
+The project included is Unity version 2020.3.0f1, but there's nothing in the project other than the C# file and compute shader (as well as some unit tests in a demo script), and nothing especially version dependent. Just copy the scripts and meta files over and you're good to go.
