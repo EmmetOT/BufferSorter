@@ -9,6 +9,7 @@ This is a very simple tool for in-place sorting of ComputeBuffers of ints or uin
 * The data buffer no longer needs to have a power of two size.
 * You can optionally sort in reverse.
 * You can optionally sort only a subset of the data, the first of N. Note that this option completely disregards the content of the remainder of the buffer, so it could be considered 'destructive' in that the set of ints will no longer be the same.
+* I've generally just hidden a lot of the extra bits and bobs away inside the class, making it very simple to use from the outside.
 
 ## How to Use
 
