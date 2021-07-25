@@ -4,6 +4,7 @@
 
 #pragma kernel SetMax
 #pragma kernel SetMin
+#pragma kernel GetPaddingIndex
 #pragma kernel BitonicSort
 #pragma kernel PadBuffer
 #pragma kernel InitKeys
@@ -36,10 +37,10 @@ void SetMin(uint3 id : SV_DispatchThreadID)
     
     InterlockedMin(PADDING_KEY, _ExternalKeys[id.x]);
     
-    GroupMemoryBarrierWithGroupSync();
+    //GroupMemoryBarrierWithGroupSync();
     
-    if (_ExternalKeys[id.x] == PADDING_KEY)
-        PADDING_KEY_INDEX = id.x;
+    //if (_ExternalKeys[id.x] == PADDING_KEY)
+    //    PADDING_KEY_INDEX = id.x;
 }
 
 // determine the greatest value in the data
@@ -51,7 +52,18 @@ void SetMax(uint3 id : SV_DispatchThreadID)
     
     InterlockedMax(PADDING_KEY, _ExternalKeys[id.x]);
     
-    GroupMemoryBarrierWithGroupSync();
+    //GroupMemoryBarrierWithGroupSync();
+    
+    //if (_ExternalKeys[id.x] == PADDING_KEY)
+    //    PADDING_KEY_INDEX = id.x;
+}
+
+// gets the index of the value in the previous kernel
+[numthreads(GROUP_SIZE, 1, 1)]
+void GetPaddingIndex(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count)
+        return;
     
     if (_ExternalKeys[id.x] == PADDING_KEY)
         PADDING_KEY_INDEX = id.x;

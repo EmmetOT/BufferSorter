@@ -15,6 +15,7 @@ namespace BufferSorter
             public int OverwriteAndTruncate { get; private set; }
             public int SetMin { get; private set; }
             public int SetMax { get; private set; }
+            public int GetPaddingIndex { get; private set; }
             public int CopyBuffer { get; private set; }
 
             public Kernels(ComputeShader cs)
@@ -25,6 +26,7 @@ namespace BufferSorter
                 OverwriteAndTruncate = cs.FindKernel("OverwriteAndTruncate");
                 SetMin = cs.FindKernel("SetMin");
                 SetMax = cs.FindKernel("SetMax");
+                GetPaddingIndex = cs.FindKernel("GetPaddingIndex");
                 CopyBuffer = cs.FindKernel("CopyBuffer");
             }
         }
@@ -44,7 +46,7 @@ namespace BufferSorter
 
             public static int ExternalValuesBuffer { get; private set; } = Shader.PropertyToID("_ExternalValues");
             public static int ExternalKeysBuffer { get; private set; } = Shader.PropertyToID("_ExternalKeys");
-            
+
             public static int FromBuffer { get; private set; } = Shader.PropertyToID("_From");
             public static int ToBuffer { get; private set; } = Shader.PropertyToID("_To");
         }
@@ -114,6 +116,10 @@ namespace BufferSorter
             // first determine either the minimum value or maximum value of the given data, depending on whether it's a reverse sort or not, 
             // to serve as the padding value for non-power-of-two sized inputs
             m_computeShader.Dispatch(minMaxKernel, Mathf.CeilToInt((float)m_originalCount / Util.GROUP_SIZE), 1, 1);
+
+            m_computeShader.SetBuffer(m_kernels.GetPaddingIndex, Properties.ExternalKeysBuffer, m_externalKeysBuffer);
+            m_computeShader.SetBuffer(m_kernels.GetPaddingIndex, Properties.PaddingBuffer, m_paddingBuffer);
+            m_computeShader.Dispatch(m_kernels.GetPaddingIndex, Mathf.CeilToInt((float)m_originalCount / Util.GROUP_SIZE), 1, 1);
             
             // setting up the second kernel, the padding kernel. because the sort only works on power of two sized buffers,
             // this will pad the buffer with duplicates of the greatest (or least, if reverse sort) integer to be truncated later
@@ -122,9 +128,9 @@ namespace BufferSorter
             m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.ValuesBuffer, m_valuesBuffer);
             m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.PaddingBuffer, m_paddingBuffer);
             m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.TempBuffer, m_tempBuffer);
-            
+
             m_computeShader.Dispatch(m_kernels.PadBuffer, Mathf.CeilToInt((float)m_paddedCount / Util.GROUP_SIZE), 1, 1);
-            
+
             // initialize the keys buffer for use with the sort algorithm proper
             Util.CalculateWorkSize(m_paddedCount, out x, out y, out z);
 
@@ -152,7 +158,7 @@ namespace BufferSorter
 
             copyBuff.Dispose();
         }
-
+        
         /// <summary>
         /// Given a compute buffer of ints or uints, sort the data in-place. Can optionally also sort it in reverse order, or only sort the first n values.
         /// </summary>
@@ -166,7 +172,7 @@ namespace BufferSorter
             m_mustTruncateValueBuffer = !Mathf.IsPowerOfTwo(m_originalCount);
             m_externalValuesBuffer = values;
             m_externalKeysBuffer = keys;
-            
+
             // initialize the buffers to be used by the sorting algorithm
             Init(out int x, out int y, out int z);
 
@@ -184,12 +190,20 @@ namespace BufferSorter
                     m_computeShader.Dispatch(m_kernels.Sort, x, y, z);
                 }
             }
-            
+
             m_computeShader.SetBuffer(m_kernels.OverwriteAndTruncate, Properties.KeysBuffer, m_keysBuffer);
             m_computeShader.SetBuffer(m_kernels.OverwriteAndTruncate, Properties.ExternalValuesBuffer, m_externalValuesBuffer);
             m_computeShader.SetBuffer(m_kernels.OverwriteAndTruncate, Properties.TempBuffer, m_tempBuffer);
 
             m_computeShader.Dispatch(m_kernels.OverwriteAndTruncate, Mathf.CeilToInt((float)m_originalCount / Util.GROUP_SIZE), 1, 1);
+
+        }
+
+        private static void DebugPrint<T>(ComputeBuffer buffer, string name)
+        {
+            T[] data = new T[buffer.count];
+            buffer.GetData(data);
+            Debug.Log(name + ": " + ToFormattedString(data) + " (" + data.Length + ")");
         }
 
         /// <summary>

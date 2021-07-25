@@ -67,37 +67,37 @@ namespace BufferSorter
                 }
             }
 
-            TestSettings(true, true, true, true);
-            TestSettings(true, true, false, true);
-            TestSettings(true, false, true, true);
-            TestSettings(true, false, false, true);
+            //TestSettings(true, true, true, true);
+            //TestSettings(true, true, false, true);
+            //TestSettings(true, false, true, true);
+            //TestSettings(true, false, false, true);
             TestSettings(false, true, true, true);
             TestSettings(false, true, false, true);
             TestSettings(false, false, true, true);
             TestSettings(false, false, false, true);
 
-            TestSettings(true, true, true, false);
-            TestSettings(true, true, false, false);
-            TestSettings(true, false, true, false);
-            TestSettings(true, false, false, false);
+            //TestSettings(true, true, true, false);
+            //TestSettings(true, true, false, false);
+            //TestSettings(true, false, true, false);
+            //TestSettings(true, false, false, false);
             TestSettings(false, true, true, false);
             TestSettings(false, true, false, false);
             TestSettings(false, false, true, false);
             TestSettings(false, false, false, false);
 
-            TestSettings(true, true, true, true, m_firstNCount);
-            TestSettings(true, true, false, true, m_firstNCount);
-            TestSettings(true, false, true, true, m_firstNCount);
-            TestSettings(true, false, false, true, m_firstNCount);
+            //TestSettings(true, true, true, true, m_firstNCount);
+            //TestSettings(true, true, false, true, m_firstNCount);
+            //TestSettings(true, false, true, true, m_firstNCount);
+            //TestSettings(true, false, false, true, m_firstNCount);
             TestSettings(false, true, true, true, m_firstNCount);
             TestSettings(false, true, false, true, m_firstNCount);
             TestSettings(false, false, true, true, m_firstNCount);
             TestSettings(false, false, false, true, m_firstNCount);
 
-            TestSettings(true, true, true, false, m_firstNCount);
-            TestSettings(true, true, false, false, m_firstNCount);
-            TestSettings(true, false, true, false, m_firstNCount);
-            TestSettings(true, false, false, false, m_firstNCount);
+            //TestSettings(true, true, true, false, m_firstNCount);
+            //TestSettings(true, true, false, false, m_firstNCount);
+            //TestSettings(true, false, true, false, m_firstNCount);
+            //TestSettings(true, false, false, false, m_firstNCount);
             TestSettings(false, true, true, false, m_firstNCount);
             TestSettings(false, true, false, false, m_firstNCount);
             TestSettings(false, false, true, false, m_firstNCount);
@@ -217,7 +217,7 @@ namespace BufferSorter
                 Debug.Log($"Input = {ToFormattedString(data)}\nSort List = {ToFormattedString(sortList)}");
                 Debug.Log($"GPU: {ToFormattedString(gpuResult)} ({gpuResult.Length}) is not equal to \n CPU: {ToFormattedString(cpuResult)} ({cpuResult.Length})");
             }
-            
+
             values.Dispose();
             values.Release();
 
