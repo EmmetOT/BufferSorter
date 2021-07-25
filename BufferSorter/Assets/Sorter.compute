@@ -8,6 +8,7 @@
 #pragma kernel PadBuffer
 #pragma kernel InitKeys
 #pragma kernel OverwriteAndTruncate
+#pragma kernel CopyBuffer
 
 int _Block;
 int _Dimension;
@@ -135,3 +136,17 @@ void OverwriteAndTruncate(uint3 id : SV_DispatchThreadID)
     
     _ExternalValues[id.x] = _Temp[_Keys[id.x]];
 }
+
+StructuredBuffer<int> _From;
+RWStructuredBuffer<int> _To;
+
+// helper kernel
+[numthreads(GROUP_SIZE, 1, 1)]
+void CopyBuffer(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count)
+        return;
+    
+    _To[id.x] = _From[id.x];
+}
+

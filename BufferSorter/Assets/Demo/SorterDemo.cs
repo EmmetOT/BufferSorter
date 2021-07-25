@@ -129,6 +129,8 @@ namespace BufferSorter
             for (int i = 0; i < count; i++)
                 data[i] = UnityEngine.Random.Range(useNegatives ? -m_randomNumberRange : 0, m_randomNumberRange);
 
+            values.SetData(data);
+
             int[] sortList;
 
             if (seperateSortList)
@@ -150,20 +152,24 @@ namespace BufferSorter
                 }
 
                 sortList = uniqueInts.ToArray();
+
+                keys.SetData(sortList);
+
+                using (Sorter sorter = new Sorter(m_sorterComputeShader))
+                {
+                    sorter.Sort(values, keys, reverse, firstN);
+                }
             }
             else
             {
                 sortList = data;
-            }
-            
-            values.SetData(data);
-            keys.SetData(sortList);
-            
-            using (Sorter sorter = new Sorter(m_sorterComputeShader))
-            {
-                sorter.Sort(values, keys, reverse, firstN);
-            }
 
+                using (Sorter sorter = new Sorter(m_sorterComputeShader))
+                {
+                    sorter.Sort(values, reverse, firstN);
+                }
+            }
+            
             int[] gpuResult = new int[count];
             values.GetData(gpuResult);
 

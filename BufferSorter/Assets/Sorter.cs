@@ -15,6 +15,7 @@ namespace BufferSorter
             public int OverwriteAndTruncate { get; private set; }
             public int SetMin { get; private set; }
             public int SetMax { get; private set; }
+            public int CopyBuffer { get; private set; }
 
             public Kernels(ComputeShader cs)
             {
@@ -24,6 +25,7 @@ namespace BufferSorter
                 OverwriteAndTruncate = cs.FindKernel("OverwriteAndTruncate");
                 SetMin = cs.FindKernel("SetMin");
                 SetMax = cs.FindKernel("SetMax");
+                CopyBuffer = cs.FindKernel("CopyBuffer");
             }
         }
 
@@ -42,6 +44,9 @@ namespace BufferSorter
 
             public static int ExternalValuesBuffer { get; private set; } = Shader.PropertyToID("_ExternalValues");
             public static int ExternalKeysBuffer { get; private set; } = Shader.PropertyToID("_ExternalKeys");
+            
+            public static int FromBuffer { get; private set; } = Shader.PropertyToID("_From");
+            public static int ToBuffer { get; private set; } = Shader.PropertyToID("_To");
         }
 
         private readonly Kernels m_kernels;
@@ -133,7 +138,20 @@ namespace BufferSorter
         /// <summary>
         /// Given a compute buffer of ints or uints, sort the data in-place. Can optionally also sort it in reverse order, or only sort the first n values.
         /// </summary>
-        public void Sort(ComputeBuffer values, bool reverse = false, int length = -1) => Sort(values, values, reverse, length);
+        public void Sort(ComputeBuffer values, bool reverse = false, int length = -1)
+        {
+            ComputeBuffer copyBuff = new ComputeBuffer(values.count, sizeof(int));
+
+            m_computeShader.SetInt(Properties.Count, values.count);
+            m_computeShader.SetBuffer(m_kernels.CopyBuffer, Properties.FromBuffer, values);
+            m_computeShader.SetBuffer(m_kernels.CopyBuffer, Properties.ToBuffer, copyBuff);
+
+            m_computeShader.Dispatch(m_kernels.CopyBuffer, Mathf.CeilToInt((float)values.count / Util.GROUP_SIZE), 1, 1);
+
+            Sort(values, copyBuff, reverse, length);
+
+            copyBuff.Dispose();
+        }
 
         /// <summary>
         /// Given a compute buffer of ints or uints, sort the data in-place. Can optionally also sort it in reverse order, or only sort the first n values.
