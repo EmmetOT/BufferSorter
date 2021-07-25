@@ -8,6 +8,7 @@ This is a very simple tool for in-place sorting of ComputeBuffers of ints or uin
 * It now works in-place, changing the data in the given ComputeBuffer to be sorted.
 * The data buffer no longer needs to have a power of two size.
 * You can optionally sort in reverse.
+* You can provide a distinct buffer containing sort keys if you want custom sorting behaviour.
 * You can optionally sort only a subset of the data, the first of N. Note that this option completely disregards the content of the remainder of the buffer, so it could be considered 'destructive' in that the set of ints will no longer be the same.
 * I've generally just hidden a lot of the extra bits and bobs away inside the class, making it very simple to use from the outside.
 
@@ -17,6 +18,6 @@ Like this:
 
 ![image](https://user-images.githubusercontent.com/18707147/126571298-38079350-4d3f-412f-8b92-2a69666b5f29.png)
  
- It couldn't be simpler, really. Reverse and sublist length are optional parameters.
+ It couldn't be simpler, really. Reverse, sublist length, and sort key buffer are optional parameters.
 
 The project included is Unity version 2020.3.0f1, but there's nothing in the project other than the C# file and compute shader (as well as some unit tests in a demo script), and nothing especially version dependent. Just copy the scripts and meta files over and you're good to go.
