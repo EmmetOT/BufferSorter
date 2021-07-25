@@ -1,5 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
+using System.Text;
 
 namespace BufferSorter
 {
@@ -35,9 +37,11 @@ namespace BufferSorter
 
             public static int KeysBuffer { get; private set; } = Shader.PropertyToID("_Keys");
             public static int ValuesBuffer { get; private set; } = Shader.PropertyToID("_Values");
-            public static int ExternalBuffer { get; private set; } = Shader.PropertyToID("_External");
             public static int TempBuffer { get; private set; } = Shader.PropertyToID("_Temp");
-            public static int PaddingValueBuffer { get; private set; } = Shader.PropertyToID("_PaddingValue");
+            public static int PaddingBuffer { get; private set; } = Shader.PropertyToID("_PaddingBuffer");
+
+            public static int ExternalValuesBuffer { get; private set; } = Shader.PropertyToID("_ExternalValues");
+            public static int ExternalKeysBuffer { get; private set; } = Shader.PropertyToID("_ExternalKeys");
         }
 
         private readonly Kernels m_kernels;
@@ -45,14 +49,18 @@ namespace BufferSorter
 
         private ComputeBuffer m_keysBuffer;
         private ComputeBuffer m_tempBuffer;
-        private ComputeBuffer m_externalBuffer;
         private ComputeBuffer m_valuesBuffer;
-        private ComputeBuffer m_paddingValueBuffer;
+        private ComputeBuffer m_paddingBuffer;
+
+        private ComputeBuffer m_externalValuesBuffer;
+        private ComputeBuffer m_externalKeysBuffer;
 
         private bool m_mustTruncateValueBuffer = false;
         private bool m_isReverseSort = false;
         private int m_originalCount = 0;
         private int m_paddedCount = 0;
+
+        private readonly int[] m_paddingInput = new int[] { 0, 0 };
 
         public Sorter(ComputeShader computeShader)
         {
@@ -67,18 +75,21 @@ namespace BufferSorter
             m_keysBuffer?.Dispose();
             m_tempBuffer?.Dispose();
             m_valuesBuffer?.Dispose();
-            m_paddingValueBuffer?.Dispose();
+            m_paddingBuffer?.Dispose();
         }
 
         private void Init(out int x, out int y, out int z)
         {
             Dispose();
-            
+
             // initializing local buffers
-            m_paddingValueBuffer = new ComputeBuffer(1, sizeof(int));
+            m_paddingBuffer = new ComputeBuffer(2, sizeof(int));
+            m_keysBuffer = new ComputeBuffer(m_paddedCount, sizeof(uint));
             m_tempBuffer = new ComputeBuffer(m_paddedCount, sizeof(int));
             m_valuesBuffer = new ComputeBuffer(m_paddedCount, sizeof(int));
-            m_keysBuffer = new ComputeBuffer(m_paddedCount, sizeof(uint));
+
+            m_tempBuffer.SetCounterValue(0);
+            m_valuesBuffer.SetCounterValue(0);
 
             m_computeShader.SetInt(Properties.Count, m_originalCount);
             m_computeShader.SetInt(Properties.NextPowerOfTwo, m_paddedCount);
@@ -87,19 +98,26 @@ namespace BufferSorter
 
             m_computeShader.SetBool(Properties.Reverse, m_isReverseSort);
 
-            m_computeShader.SetBuffer(minMaxKernel, Properties.ExternalBuffer, m_externalBuffer);
-            m_computeShader.SetBuffer(minMaxKernel, Properties.PaddingValueBuffer, m_paddingValueBuffer);
+            m_paddingInput[0] = m_isReverseSort ? int.MaxValue : int.MinValue;
+            m_paddingInput[1] = 0;
+
+            m_paddingBuffer.SetData(m_paddingInput);
+
+            m_computeShader.SetBuffer(minMaxKernel, Properties.ExternalKeysBuffer, m_externalKeysBuffer);
+            m_computeShader.SetBuffer(minMaxKernel, Properties.PaddingBuffer, m_paddingBuffer);
 
             // first determine either the minimum value or maximum value of the given data, depending on whether it's a reverse sort or not, 
             // to serve as the padding value for non-power-of-two sized inputs
             m_computeShader.Dispatch(minMaxKernel, Mathf.CeilToInt((float)m_originalCount / Util.GROUP_SIZE), 1, 1);
-
+            
             // setting up the second kernel, the padding kernel. because the sort only works on power of two sized buffers,
             // this will pad the buffer with duplicates of the greatest (or least, if reverse sort) integer to be truncated later
-            m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.ValuesBuffer, m_externalBuffer);
-            m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.TempBuffer, m_valuesBuffer);
-            m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.PaddingValueBuffer, m_paddingValueBuffer);
-
+            m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.ExternalKeysBuffer, m_externalKeysBuffer);
+            m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.ExternalValuesBuffer, m_externalValuesBuffer);
+            m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.ValuesBuffer, m_valuesBuffer);
+            m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.PaddingBuffer, m_paddingBuffer);
+            m_computeShader.SetBuffer(m_kernels.PadBuffer, Properties.TempBuffer, m_tempBuffer);
+            
             m_computeShader.Dispatch(m_kernels.PadBuffer, Mathf.CeilToInt((float)m_paddedCount / Util.GROUP_SIZE), 1, 1);
             
             // initialize the keys buffer for use with the sort algorithm proper
@@ -115,14 +133,22 @@ namespace BufferSorter
         /// <summary>
         /// Given a compute buffer of ints or uints, sort the data in-place. Can optionally also sort it in reverse order, or only sort the first n values.
         /// </summary>
-        public void Sort(ComputeBuffer values, bool reverse = false, int length = -1)
+        public void Sort(ComputeBuffer values, bool reverse = false, int length = -1) => Sort(values, values, reverse, length);
+
+        /// <summary>
+        /// Given a compute buffer of ints or uints, sort the data in-place. Can optionally also sort it in reverse order, or only sort the first n values.
+        /// </summary>
+        public void Sort(ComputeBuffer values, ComputeBuffer keys, bool reverse = false, int length = -1)
         {
+            Debug.Assert(values.count == keys.count, "Value and key buffers must be of the same size.");
+
             m_isReverseSort = reverse;
             m_originalCount = length < 0 ? values.count : Mathf.Min(length, values.count);
             m_paddedCount = Mathf.NextPowerOfTwo(m_originalCount);
             m_mustTruncateValueBuffer = !Mathf.IsPowerOfTwo(m_originalCount);
-            m_externalBuffer = values;
-
+            m_externalValuesBuffer = values;
+            m_externalKeysBuffer = keys;
+            
             // initialize the buffers to be used by the sorting algorithm
             Init(out int x, out int y, out int z);
 
@@ -142,11 +168,43 @@ namespace BufferSorter
             }
             
             m_computeShader.SetBuffer(m_kernels.OverwriteAndTruncate, Properties.KeysBuffer, m_keysBuffer);
-            m_computeShader.SetBuffer(m_kernels.OverwriteAndTruncate, Properties.ExternalBuffer, m_externalBuffer);
-            m_computeShader.SetBuffer(m_kernels.OverwriteAndTruncate, Properties.ValuesBuffer, m_valuesBuffer);
+            m_computeShader.SetBuffer(m_kernels.OverwriteAndTruncate, Properties.ExternalValuesBuffer, m_externalValuesBuffer);
             m_computeShader.SetBuffer(m_kernels.OverwriteAndTruncate, Properties.TempBuffer, m_tempBuffer);
-            
+
             m_computeShader.Dispatch(m_kernels.OverwriteAndTruncate, Mathf.CeilToInt((float)m_originalCount / Util.GROUP_SIZE), 1, 1);
+        }
+
+        /// <summary>
+        /// Returns a string of the given array in the form [x, y, z...]
+        /// </summary>
+        public static string ToFormattedString<T>(IList<T> array) => ToFormattedString(array, 0, array.Count);
+
+        /// <summary>
+        /// Returns a string of the given array in the form [x, y, z...]
+        /// </summary>
+        public static string ToFormattedString<T>(IList<T> array, int startIndex) => ToFormattedString(array, startIndex, array.Count);
+
+        /// <summary>
+        /// Returns a string of the given array in the form [x, y, z...]
+        /// </summary>
+        public static string ToFormattedString<T>(IList<T> array, int startIndex, int endIndex)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("[");
+
+            endIndex = Mathf.Min(endIndex, array.Count);
+
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                sb.Append(array[i].ToString());
+
+                if (i < endIndex - 1)
+                    sb.Append(", ");
+            }
+
+            sb.Append("]");
+
+            return sb.ToString();
         }
 
         private static class Util

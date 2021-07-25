@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text;
+using System;
 
 namespace BufferSorter
 {
@@ -44,12 +45,12 @@ namespace BufferSorter
 
         private void RunManyTests(int count, int testRuns)
         {
-            void TestSettings(bool powerOfTwo, bool reverse, bool useNegatives, int firstN = -1)
+            void TestSettings(bool powerOfTwo, bool reverse, bool useNegatives, bool seperateSortList, int firstN = -1)
             {
                 int failed = -1;
                 for (int i = 0; i < testRuns; i++)
                 {
-                    if (!RunTest(count, powerOfTwo, reverse, useNegatives, firstN))
+                    if (!RunTest(count, powerOfTwo, reverse, useNegatives, seperateSortList, firstN))
                     {
                         failed = i;
                         break;
@@ -58,49 +59,109 @@ namespace BufferSorter
 
                 if (failed < 0)
                 {
-                    Debug.Log(AddColour("Success on settings: ", Color.green) + $"Power Of Two = {powerOfTwo}, Reverse = {reverse}, Negatives = {useNegatives}, FirstN = {firstN}");
+                    Debug.Log(AddColour("Success on settings: ", Color.green) + $"Power Of Two = {powerOfTwo}, Reverse = {reverse}, Negatives = {useNegatives}, SeperateSortList = {seperateSortList}, FirstN = {firstN}");
                 }
                 else
                 {
-                    Debug.Log(AddColour($"Failure at attempt {failed} on settings: ", Color.red) + $"Power Of Two = {powerOfTwo}, Reverse = {reverse}, Negatives = {useNegatives}, FirstN = {firstN}");
+                    Debug.Log(AddColour($"Failure at attempt {failed} on settings: ", Color.red) + $"Power Of Two = {powerOfTwo}, Reverse = {reverse}, Negatives = {useNegatives}, SeperateSortList = {seperateSortList}, FirstN = {firstN}");
                 }
             }
 
-            TestSettings(true, true, true);
-            TestSettings(true, true, false);
-            TestSettings(true, false, true);
-            TestSettings(true, false, false);
-            TestSettings(false, true, true);
-            TestSettings(false, true, false);
-            TestSettings(false, false, true);
-            TestSettings(false, false, false);
+            TestSettings(true, true, true, true);
+            TestSettings(true, true, false, true);
+            TestSettings(true, false, true, true);
+            TestSettings(true, false, false, true);
+            TestSettings(false, true, true, true);
+            TestSettings(false, true, false, true);
+            TestSettings(false, false, true, true);
+            TestSettings(false, false, false, true);
 
-            TestSettings(true, true, true, m_firstNCount);
-            TestSettings(true, true, false, m_firstNCount);
-            TestSettings(true, false, true, m_firstNCount);
-            TestSettings(true, false, false, m_firstNCount);
-            TestSettings(false, true, true, m_firstNCount);
-            TestSettings(false, true, false, m_firstNCount);
-            TestSettings(false, false, true, m_firstNCount);
-            TestSettings(false, false, false, m_firstNCount);
+            TestSettings(true, true, true, false);
+            TestSettings(true, true, false, false);
+            TestSettings(true, false, true, false);
+            TestSettings(true, false, false, false);
+            TestSettings(false, true, true, false);
+            TestSettings(false, true, false, false);
+            TestSettings(false, false, true, false);
+            TestSettings(false, false, false, false);
+
+            TestSettings(true, true, true, true, m_firstNCount);
+            TestSettings(true, true, false, true, m_firstNCount);
+            TestSettings(true, false, true, true, m_firstNCount);
+            TestSettings(true, false, false, true, m_firstNCount);
+            TestSettings(false, true, true, true, m_firstNCount);
+            TestSettings(false, true, false, true, m_firstNCount);
+            TestSettings(false, false, true, true, m_firstNCount);
+            TestSettings(false, false, false, true, m_firstNCount);
+
+            TestSettings(true, true, true, false, m_firstNCount);
+            TestSettings(true, true, false, false, m_firstNCount);
+            TestSettings(true, false, true, false, m_firstNCount);
+            TestSettings(true, false, false, false, m_firstNCount);
+            TestSettings(false, true, true, false, m_firstNCount);
+            TestSettings(false, true, false, false, m_firstNCount);
+            TestSettings(false, false, true, false, m_firstNCount);
+            TestSettings(false, false, false, false, m_firstNCount);
         }
 
-        private bool RunTest(int count, bool powerOfTwo, bool reverse, bool useNegatives, int firstN)
+        private int[] Sort(int[] input, int[] keys, bool reverse)
+        {
+            int[] result = new int[input.Length];
+            Array.Copy(input, result, input.Length);
+
+            IComparer<int> comparer = reverse ? new NegativeComparer() as IComparer<int> : new PositiveComparer() as IComparer<int>;
+            Array.Sort(keys, result, 0, Mathf.Min(keys.Length, result.Length), comparer);
+
+            return result;
+        }
+
+        private bool RunTest(int count, bool powerOfTwo, bool reverse, bool useNegatives, bool seperateSortList, int firstN)
         {
             count = powerOfTwo ? Mathf.NextPowerOfTwo(count) : count;
             ComputeBuffer values = new ComputeBuffer(count, sizeof(int));
             values.SetCounterValue(0);
 
+            ComputeBuffer keys = new ComputeBuffer(count, sizeof(int));
+            keys.SetCounterValue(0);
+
             int[] data = new int[count];
 
             for (int i = 0; i < count; i++)
-                data[i] = Random.Range(useNegatives ? -m_randomNumberRange : 0, m_randomNumberRange);
+                data[i] = UnityEngine.Random.Range(useNegatives ? -m_randomNumberRange : 0, m_randomNumberRange);
 
+            int[] sortList;
+
+            if (seperateSortList)
+            {
+                // generate an array of unique ints for the sort list, because if there are repeated ints,
+                // it may sort correctly but still show as a failed test because of the ambiguity
+                HashSet<int> uniqueInts = new HashSet<int>();
+
+                for (int i = 0; i < count; i++)
+                {
+                    int randomInt;
+
+                    do
+                    {
+                        randomInt = UnityEngine.Random.Range(0, 100000);
+                    } while (uniqueInts.Contains(randomInt));
+
+                    uniqueInts.Add(randomInt);
+                }
+
+                sortList = uniqueInts.ToArray();
+            }
+            else
+            {
+                sortList = data;
+            }
+            
             values.SetData(data);
-
+            keys.SetData(sortList);
+            
             using (Sorter sorter = new Sorter(m_sorterComputeShader))
             {
-                sorter.Sort(values, reverse, firstN);
+                sorter.Sort(values, keys, reverse, firstN);
             }
 
             int[] gpuResult = new int[count];
@@ -110,7 +171,7 @@ namespace BufferSorter
 
             if (firstN < 0)
             {
-                cpuResult = data.OrderBy(v => reverse ? -v : v).ToArray();
+                cpuResult = Sort(data, sortList, reverse);
             }
             else
             {
@@ -125,12 +186,10 @@ namespace BufferSorter
                 for (int i = 0; i < count - firstN; i++)
                     secondHalf[i] = data[i + firstN];
 
-                firstHalf = firstHalf.OrderBy(v => reverse ? -v : v).ToArray();
-
+                firstHalf = Sort(firstHalf, sortList, reverse);
                 cpuResult = firstHalf.Concat(secondHalf).ToArray();
             }
-
-
+            
             bool match = cpuResult.Length == gpuResult.Length;
 
             if (match)
@@ -148,15 +207,31 @@ namespace BufferSorter
             }
 
             if (!match)
+            {
+                Debug.Log($"Input = {ToFormattedString(data)}\nSort List = {ToFormattedString(sortList)}");
                 Debug.Log($"GPU: {ToFormattedString(gpuResult)} ({gpuResult.Length}) is not equal to \n CPU: {ToFormattedString(cpuResult)} ({cpuResult.Length})");
-
+            }
+            
             values.Dispose();
             values.Release();
+
+            keys.Dispose();
+            keys.Release();
 
             return match;
         }
 
         #region Helper Methods
+
+        private struct PositiveComparer : IComparer<int>
+        {
+            public int Compare(int x, int y) => x - y;
+        }
+
+        private struct NegativeComparer : IComparer<int>
+        {
+            public int Compare(int x, int y) => y - x;
+        }
 
         /// <summary>
         /// Add an RGB colour markcup code to the given string.
